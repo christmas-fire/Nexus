@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package nexus.chat.v1;
+
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/christmas-fire/nexus/pkg/chat/v1;chatv1";
+
+service ChatService {
+    rpc CreateChat(CreateChatRequest) returns (CreateChatResponse) {}
+    rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {}
+    rpc GetChatHistory(GetChatHistoryRequest) returns (stream Message) {}
+}
+
+message Message {
+    string id = 1;                              // UUID сообщения
+    string chat_id = 2;                         // ID чата, к которому оно принадлежит
+    int64 sender_id = 3;                        // ID отправителя
+    string text = 4;                            // Текст сообщения
+    google.protobuf.Timestamp sent_at = 5;      // Время отправки
+}
+
+
+message CreateChatRequest {
+    repeated int64 member_ids = 1;
+    string name = 2;
+}
+
+message CreateChatResponse {
+    string chat_id = 1;
+}
+
+
+message SendMessageRequest {
+    string chat_id = 1;
+    string text = 2;
+}
+
+message SendMessageResponse {
+    string message_id = 1;
+    google.protobuf.Timestamp sent_at = 2;
+}
+
+message GetChatHistoryRequest {
+    string chat_id = 1;
+}
