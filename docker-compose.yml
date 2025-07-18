@@ -1,0 +1,64 @@
+services:
+  app:
+    build: ./
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: migrate/migrate
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN}
+    volumes:
+      - ./internal/migrations:/migrations
+    command: ["-path", "/migrations", "-database", "${POSTGRES_DSN}", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  redis:
+    image: redis:7
+    restart: always
+    environment:
+      REDIS_PORT: ${REDIS_PORT}
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis_data:/redis_data
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    depends_on:
+      - app
+
+volumes:
+  postgres_data: {}
+  redis_data: {}
+  
