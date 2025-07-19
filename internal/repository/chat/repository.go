@@ -5,22 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/christmas-fire/nexus/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type Message struct {
-	ID       string
-	ChatID   string
-	SenderID int64
-	Text     string
-	SentAt   time.Time
-}
 
 type ChatRepository interface {
 	CreateChat(ctx context.Context, name *string, memberIDs []int64) (string, error)
 	IsMember(ctx context.Context, chatID string, userID int64) (bool, error)
 	SendMessage(ctx context.Context, chatID string, senderID int64, text string) (messageID string, sentAt time.Time, err error)
-	GetHistory(ctx context.Context, chatID string, limit int) ([]Message, error)
+	GetHistory(ctx context.Context, chatID string, limit int) ([]models.Message, error)
+	GetChatMemberIDs(ctx context.Context, chatID string) ([]int64, error)
 }
 
 type postgresRepository struct {
@@ -81,7 +75,7 @@ func (r *postgresRepository) SendMessage(ctx context.Context, chatID string, sen
 	return messageID, sentAt, nil
 }
 
-func (r *postgresRepository) GetHistory(ctx context.Context, chatID string, limit int) ([]Message, error) {
+func (r *postgresRepository) GetHistory(ctx context.Context, chatID string, limit int) ([]models.Message, error) {
 	query := `
 		SELECT id, chat_id, sender_id, text, sent_at 
 		FROM messages 
@@ -95,9 +89,9 @@ func (r *postgresRepository) GetHistory(ctx context.Context, chatID string, limi
 	}
 	defer rows.Close()
 
-	var messages []Message
+	var messages []models.Message
 	for rows.Next() {
-		var msg Message
+		var msg models.Message
 		if err := rows.Scan(&msg.ID, &msg.ChatID, &msg.SenderID, &msg.Text, &msg.SentAt); err != nil {
 			return nil, fmt.Errorf("failed to scan message row: %w", err)
 		}
@@ -113,4 +107,23 @@ func (r *postgresRepository) GetHistory(ctx context.Context, chatID string, limi
 	}
 
 	return messages, nil
+}
+
+func (r *postgresRepository) GetChatMemberIDs(ctx context.Context, chatID string) ([]int64, error) {
+	query := "SELECT user_id FROM chat_members WHERE chat_id = $1"
+	rows, err := r.db.Query(ctx, query, chatID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query chat member ids: %w", err)
+	}
+	defer rows.Close()
+
+	var memberIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		memberIDs = append(memberIDs, id)
+	}
+	return memberIDs, nil
 }

@@ -3,9 +3,11 @@ services:
     build: ./
     environment:
       POSTGRES_DSN: ${POSTGRES_DSN}
+      REDIS_ADDR: ${REDIS_ADDR}
       JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8080:8080"
+      - "8081:8081"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -47,16 +49,6 @@ services:
       - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - redis_data:/redis_data
-
-  nginx:
-    image: nginx:1.27-alpine
-    restart: always
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx:/etc/nginx/conf.d
-    depends_on:
-      - app
 
 volumes:
   postgres_data: {}

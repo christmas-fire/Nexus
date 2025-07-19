@@ -1,0 +1,44 @@
+version: '3'
+
+tasks:
+  default:
+    desc: "Показывает доступные задачи."
+    cmds:
+      - task --list-all
+
+  up:
+    desc: "Собрать образы и запустить все сервисы в фоновом режиме."
+    cmds:
+      - docker-compose up -d --build
+
+  start:
+    desc: "Запустить существующие контейнеры (без пересборки)."
+    cmds:
+      - docker-compose up -d
+
+  stop:
+    desc: "Остановить запущенные сервисы."
+    cmds:
+      - docker-compose stop
+
+  down:
+    desc: "Остановить и удалить контейнеры."
+    cmds:
+      - docker-compose down
+
+  restart:
+    desc: "Останавливает и запускает контейнеры."
+    cmds:
+      - docker-compose down && docker-compose up -d --build
+
+  clean:
+    desc: "Остановить, удалить контейнеры, сети и тома данных."
+    prompt: "Вы уверены? (y/n)"
+    cmds:
+      - docker-compose down -v
+
+  ps:
+    desc: "Показать статус контейнеров."
+    cmds:
+      - docker-compose ps
+  

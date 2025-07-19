@@ -2,22 +2,31 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log"
 	"time"
 
+	"github.com/christmas-fire/nexus/internal/models"
 	"github.com/christmas-fire/nexus/internal/repository/chat"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
 	ErrPermissionDenied = errors.New("permission denied")
 )
 
+const (
+	messagesChannel = "messages"
+)
+
 type ChatService struct {
 	chatRepo chat.ChatRepository
+	redis    *redis.Client
 }
 
-func NewChatService(chatRepo chat.ChatRepository) *ChatService {
-	return &ChatService{chatRepo: chatRepo}
+func NewChatService(chatRepo chat.ChatRepository, redisClient *redis.Client) *ChatService {
+	return &ChatService{chatRepo: chatRepo, redis: redisClient}
 }
 
 func (s *ChatService) CreateChat(ctx context.Context, name *string, memberIDs []int64) (string, error) {
@@ -37,10 +46,33 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID string, senderID i
 		return "", time.Time{}, errors.New("message text cannot be empty")
 	}
 
-	return s.chatRepo.SendMessage(ctx, chatID, senderID, text)
+	messageID, sentAt, err := s.chatRepo.SendMessage(ctx, chatID, senderID, text)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	msg := models.Message{
+		ID:       messageID,
+		ChatID:   chatID,
+		SenderID: senderID,
+		Text:     text,
+		SentAt:   sentAt,
+	}
+
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("failed to marshal message for redis: %v", err)
+		return messageID, sentAt, nil
+	}
+
+	if err := s.redis.Publish(ctx, messagesChannel, msgBytes).Err(); err != nil {
+		log.Printf("failed to publish message to redis: %v", err)
+	}
+
+	return messageID, sentAt, nil
 }
 
-func (s *ChatService) GetChatHistory(ctx context.Context, chatID string, userID int64) ([]chat.Message, error) {
+func (s *ChatService) GetChatHistory(ctx context.Context, chatID string, userID int64) ([]models.Message, error) {
 	isMember, err := s.chatRepo.IsMember(ctx, chatID, userID)
 	if err != nil {
 		return nil, err

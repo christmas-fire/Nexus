@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/christmas-fire/nexus/internal/app/gateway"
 	grpcAuth "github.com/christmas-fire/nexus/internal/app/grpc/auth"
 	grpcChat "github.com/christmas-fire/nexus/internal/app/grpc/chat"
 	"github.com/christmas-fire/nexus/internal/app/grpc/interceptors"
@@ -21,6 +23,7 @@ import (
 	chatService "github.com/christmas-fire/nexus/internal/service/chat"
 
 	"github.com/christmas-fire/nexus/internal/storage/postgres"
+	"github.com/christmas-fire/nexus/internal/storage/redis"
 
 	authv1 "github.com/christmas-fire/nexus/pkg/auth/v1"
 	chatv1 "github.com/christmas-fire/nexus/pkg/chat/v1"
@@ -38,6 +41,13 @@ func main() {
 	}
 	defer dbPool.Close()
 
+	redisAddr := os.Getenv("REDIS_ADDR")
+
+	redisClient, err := redis.NewClient(ctx, redisAddr)
+	if err != nil {
+		log.Fatalf("failed to connect to redis: %v", err)
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET environment variable is not set")
@@ -53,7 +63,7 @@ func main() {
 	chRepository := chat.NewPostgresRepository(dbPool)
 
 	authenticationService := authService.NewAuthService(userRepository, jwtSecret, tokenTTL)
-	chService := chatService.NewChatService(chRepository)
+	chService := chatService.NewChatService(chRepository, redisClient)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -70,6 +80,19 @@ func main() {
 	authv1.RegisterAuthServiceServer(grpcServer, grpcAuthServer)
 	chatv1.RegisterChatServiceServer(grpcServer, grpcChatServer)
 
+	hub := gateway.NewHub(redisClient, chRepository)
+	go hub.Run()
+	go hub.SubscribeToMessages(ctx)
+
+	httpMux := http.NewServeMux()
+	httpMux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		gateway.ServeWs(hub, w, r, jwtSecret)
+	})
+	httpServer := &http.Server{
+		Addr:    ":8081",
+		Handler: httpMux,
+	}
+
 	errChan := make(chan error, 1)
 
 	go func() {
@@ -81,6 +104,13 @@ func main() {
 		log.Println("gRPC server is listening on", listener.Addr())
 		if err := grpcServer.Serve(listener); err != nil {
 			errChan <- fmt.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	go func() {
+		log.Printf("WebSocket gateway is listening on :8081")
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errChan <- fmt.Errorf("HTTP server failed: %w", err)
 		}
 	}()
 
@@ -96,4 +126,9 @@ func main() {
 
 	grpcServer.GracefulStop()
 
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
 }
