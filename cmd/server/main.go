@@ -54,7 +54,7 @@ func main() {
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET environment variable is not set")
 	}
-	tokenTTL := 1 * time.Hour
+	tokenTTL := 72 * time.Hour
 
 	publicMethods := map[string]bool{
 		"/nexus.auth.v1.AuthService/Login":    true,

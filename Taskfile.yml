@@ -2,43 +2,49 @@ version: '3'
 
 tasks:
   default:
-    desc: "Показывает доступные задачи."
+    desc: "Shows available tasks."
     cmds:
       - task --list-all
 
   up:
-    desc: "Собрать образы и запустить все сервисы в фоновом режиме."
+    desc: "Build images and start all services in detached mode."
     cmds:
+      - echo "📦 running..."
       - docker-compose up -d --build
 
   start:
-    desc: "Запустить существующие контейнеры (без пересборки)."
+    desc: "Start existing containers."
     cmds:
-      - docker-compose up -d
+      - echo "📦 running..."
+      - docker-compose start
 
   stop:
-    desc: "Остановить запущенные сервисы."
+    desc: "Stop running services."
     cmds:
+      - echo "📦 running..."
       - docker-compose stop
 
   down:
-    desc: "Остановить и удалить контейнеры."
+    desc: "Stop and remove containers."
     cmds:
+      - echo "📦 running..."
       - docker-compose down
 
   restart:
-    desc: "Останавливает и запускает контейнеры."
+    desc: "Stops and builds the containers."
     cmds:
+      - echo "📦 running..."
       - docker-compose down && docker-compose up -d --build
 
   clean:
-    desc: "Остановить, удалить контейнеры, сети и тома данных."
-    prompt: "Вы уверены? (y/n)"
+    desc: "Stop, remove containers, networks and data volumes."
+    prompt: "Are you sure? (y/n)"
     cmds:
+      - echo "📦 running..."
       - docker-compose down -v
 
   ps:
-    desc: "Показать статус контейнеров."
+    desc: "Show status of containers."
     cmds:
+      - echo "📦 running..."
       - docker-compose ps
-  
