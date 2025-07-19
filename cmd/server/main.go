@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	grpcAuth "github.com/christmas-fire/nexus/internal/app/grpc/auth"
@@ -41,11 +44,6 @@ func main() {
 	}
 	tokenTTL := 1 * time.Hour
 
-	listener, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
 	publicMethods := map[string]bool{
 		"/nexus.auth.v1.AuthService/Login":    true,
 		"/nexus.auth.v1.AuthService/Register": true,
@@ -72,8 +70,30 @@ func main() {
 	authv1.RegisterAuthServiceServer(grpcServer, grpcAuthServer)
 	chatv1.RegisterChatServiceServer(grpcServer, grpcChatServer)
 
-	log.Println("gRPC server is listening on", listener.Addr())
-	if err := grpcServer.Serve(listener); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	errChan := make(chan error, 1)
+
+	go func() {
+		listener, err := net.Listen("tcp", ":8080")
+		if err != nil {
+			errChan <- fmt.Errorf("failed to listen: %v", err)
+		}
+
+		log.Println("gRPC server is listening on", listener.Addr())
+		if err := grpcServer.Serve(listener); err != nil {
+			errChan <- fmt.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	quitChan := make(chan os.Signal, 1)
+	signal.Notify(quitChan, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case sig := <-quitChan:
+		log.Printf("Shutdown signal received: %s", sig)
+	case err := <-errChan:
+		log.Printf("Server error, initiating shutdown: %v", err)
 	}
+
+	grpcServer.GracefulStop()
+
 }

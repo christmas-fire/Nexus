@@ -14,11 +14,11 @@ service ChatService {
 }
 
 message Message {
-    string id = 1;                              // UUID сообщения
-    string chat_id = 2;                         // ID чата, к которому оно принадлежит
-    int64 sender_id = 3;                        // ID отправителя
-    string text = 4;                            // Текст сообщения
-    google.protobuf.Timestamp sent_at = 5;      // Время отправки
+    string id = 1;                              
+    string chat_id = 2;                         
+    int64 sender_id = 3;                        
+    string text = 4;                           
+    google.protobuf.Timestamp sent_at = 5;     
 }
 
 
@@ -30,7 +30,6 @@ message CreateChatRequest {
 message CreateChatResponse {
     string chat_id = 1;
 }
-
 
 message SendMessageRequest {
     string chat_id = 1;
