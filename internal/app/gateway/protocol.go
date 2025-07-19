@@ -3,22 +3,19 @@ package gateway
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/christmas-fire/nexus/internal/models"
 )
 
-// WsMessage - это общая обертка для всех сообщений.
-// Мы используем json.RawMessage, чтобы отложить парсинг `payload`,
-// пока мы не узнаем тип сообщения.
 type WsMessage struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
 }
 
-// AuthRequest - это структура для payload сообщения типа "auth".
 type AuthRequest struct {
 	Token string `json:"token"`
 }
 
-// AuthResponse - это структура для payload сообщения типа "auth_status".
 type AuthResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
@@ -30,6 +27,11 @@ type NewMessage struct {
 	SenderID int64     `json:"sender_id"`
 	Text     string    `json:"text"`
 	SentAt   time.Time `json:"sent_at"`
+}
+
+type SendMessageRequest struct {
+	ChatID string `json:"chat_id"`
+	Text   string `json:"text"`
 }
 
 func NewWsMessage(typ string, payload interface{}) ([]byte, error) {
@@ -44,4 +46,23 @@ func NewWsMessage(typ string, payload interface{}) ([]byte, error) {
 	}
 
 	return json.Marshal(msg)
+}
+
+type GetMyChatsRequest struct{}
+
+type MyChatsResponse struct {
+	Chats []ChatInfo `json:"chats"`
+}
+
+type ChatInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type GetChatHistoryRequest struct {
+	ChatID string `json:"chat_id"`
+}
+
+type ChatHistoryResponse struct {
+	Messages []models.Message `json:"messages"`
 }

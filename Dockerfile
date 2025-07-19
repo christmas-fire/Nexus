@@ -17,10 +17,13 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 COPY --from=builder /app/server .
 
+COPY --from=builder /app/web ./web
+
 RUN chown -R appuser:appgroup /app
 
 USER appuser
 
 EXPOSE 8080
+EXPOSE 8081
 
 CMD ["./server"]

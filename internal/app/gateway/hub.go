@@ -8,16 +8,8 @@ import (
 
 	"github.com/christmas-fire/nexus/internal/models"
 	"github.com/christmas-fire/nexus/internal/repository/chat"
-	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 )
-
-type Client struct {
-	UserID int64
-	Conn   *websocket.Conn
-	hub    *Hub
-	send   chan []byte
-}
 
 type Hub struct {
 	clients    map[*Client]bool

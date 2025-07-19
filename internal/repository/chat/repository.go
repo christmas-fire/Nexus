@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ type ChatRepository interface {
 	SendMessage(ctx context.Context, chatID string, senderID int64, text string) (messageID string, sentAt time.Time, err error)
 	GetHistory(ctx context.Context, chatID string, limit int) ([]models.Message, error)
 	GetChatMemberIDs(ctx context.Context, chatID string) ([]int64, error)
+	GetChatsByUserID(ctx context.Context, userID int64) ([]ChatInfo, error)
 }
 
 type postgresRepository struct {
@@ -23,6 +25,11 @@ type postgresRepository struct {
 
 func NewPostgresRepository(db *pgxpool.Pool) ChatRepository {
 	return &postgresRepository{db: db}
+}
+
+type ChatInfo struct {
+	ID   string
+	Name string
 }
 
 func (r *postgresRepository) CreateChat(ctx context.Context, name *string, memberIDs []int64) (string, error) {
@@ -126,4 +133,43 @@ func (r *postgresRepository) GetChatMemberIDs(ctx context.Context, chatID string
 		memberIDs = append(memberIDs, id)
 	}
 	return memberIDs, nil
+}
+
+func (r *postgresRepository) GetChatsByUserID(ctx context.Context, userID int64) ([]ChatInfo, error) {
+	query := `
+        SELECT c.id, c.name FROM chats c
+        JOIN chat_members cm ON c.id = cm.chat_id
+        WHERE cm.user_id = $1
+        ORDER BY c.created_at DESC
+    `
+
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query chats by userID: %w", err)
+	}
+	defer rows.Close()
+
+	var chats []ChatInfo
+	for rows.Next() {
+		var chat ChatInfo
+		var name sql.NullString
+
+		if err := rows.Scan(&chat.ID, &name); err != nil {
+			return nil, fmt.Errorf("failed to scan chat row: %w", err)
+		}
+
+		if name.Valid {
+			chat.Name = name.String
+		} else {
+			chat.Name = "Unnamed Chat"
+		}
+
+		chats = append(chats, chat)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating chat rows: %w", err)
+	}
+
+	return chats, nil
 }

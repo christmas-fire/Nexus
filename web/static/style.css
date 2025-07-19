@@ -1,0 +1,5 @@
+#messages-container {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse; /* Новые сообщения будут появляться снизу */
+}

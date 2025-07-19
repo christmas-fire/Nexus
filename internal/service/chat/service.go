@@ -84,3 +84,7 @@ func (s *ChatService) GetChatHistory(ctx context.Context, chatID string, userID 
 	const messageLimit = 50
 	return s.chatRepo.GetHistory(ctx, chatID, messageLimit)
 }
+
+func (s *ChatService) GetChatsByUserID(ctx context.Context, userID int64) ([]chat.ChatInfo, error) {
+	return s.chatRepo.GetChatsByUserID(ctx, userID)
+}

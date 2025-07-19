@@ -15,6 +15,7 @@ import (
 	grpcAuth "github.com/christmas-fire/nexus/internal/app/grpc/auth"
 	grpcChat "github.com/christmas-fire/nexus/internal/app/grpc/chat"
 	"github.com/christmas-fire/nexus/internal/app/grpc/interceptors"
+	"github.com/christmas-fire/nexus/internal/app/rest"
 
 	"github.com/christmas-fire/nexus/internal/repository/chat"
 	userRepo "github.com/christmas-fire/nexus/internal/repository/user"
@@ -29,6 +30,7 @@ import (
 	chatv1 "github.com/christmas-fire/nexus/pkg/chat/v1"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -80,14 +82,36 @@ func main() {
 	authv1.RegisterAuthServiceServer(grpcServer, grpcAuthServer)
 	chatv1.RegisterChatServiceServer(grpcServer, grpcChatServer)
 
+	grpcConn, err := grpc.DialContext(
+		ctx,
+		"localhost:8080",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Fatalf("failed to create gRPC client connection: %v", err)
+	}
+	defer grpcConn.Close()
+
+	chatGrpcClient := chatv1.NewChatServiceClient(grpcConn)
+
 	hub := gateway.NewHub(redisClient, chRepository)
 	go hub.Run()
 	go hub.SubscribeToMessages(ctx)
 
 	httpMux := http.NewServeMux()
+
 	httpMux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		gateway.ServeWs(hub, w, r, jwtSecret)
+		gateway.ServeWs(hub, w, r, jwtSecret, chatGrpcClient)
 	})
+
+	authRestHandler := rest.NewAuthHandler(authenticationService)
+
+	httpMux.HandleFunc("/api/v1/register", authRestHandler.Register)
+	httpMux.HandleFunc("/api/v1/login", authRestHandler.Login)
+
+	fileServer := http.FileServer(http.Dir("./web"))
+	httpMux.Handle("/", fileServer)
+
 	httpServer := &http.Server{
 		Addr:    ":8081",
 		Handler: httpMux,

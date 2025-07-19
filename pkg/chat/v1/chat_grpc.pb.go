@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.4.0
 // - protoc             v6.31.1
-// source: api/proto/chat.proto
+// source: proto/chat/v1/chat.proto
 
 package chatv1
 
@@ -22,6 +22,7 @@ const (
 	ChatService_CreateChat_FullMethodName     = "/nexus.chat.v1.ChatService/CreateChat"
 	ChatService_SendMessage_FullMethodName    = "/nexus.chat.v1.ChatService/SendMessage"
 	ChatService_GetChatHistory_FullMethodName = "/nexus.chat.v1.ChatService/GetChatHistory"
+	ChatService_GetMyChats_FullMethodName     = "/nexus.chat.v1.ChatService/GetMyChats"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -31,6 +32,7 @@ type ChatServiceClient interface {
 	CreateChat(ctx context.Context, in *CreateChatRequest, opts ...grpc.CallOption) (*CreateChatResponse, error)
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
 	GetChatHistory(ctx context.Context, in *GetChatHistoryRequest, opts ...grpc.CallOption) (ChatService_GetChatHistoryClient, error)
+	GetMyChats(ctx context.Context, in *GetMyChatsRequest, opts ...grpc.CallOption) (*GetMyChatsResponse, error)
 }
 
 type chatServiceClient struct {
@@ -94,6 +96,16 @@ func (x *chatServiceGetChatHistoryClient) Recv() (*Message, error) {
 	return m, nil
 }
 
+func (c *chatServiceClient) GetMyChats(ctx context.Context, in *GetMyChatsRequest, opts ...grpc.CallOption) (*GetMyChatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMyChatsResponse)
+	err := c.cc.Invoke(ctx, ChatService_GetMyChats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility
@@ -101,6 +113,7 @@ type ChatServiceServer interface {
 	CreateChat(context.Context, *CreateChatRequest) (*CreateChatResponse, error)
 	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
 	GetChatHistory(*GetChatHistoryRequest, ChatService_GetChatHistoryServer) error
+	GetMyChats(context.Context, *GetMyChatsRequest) (*GetMyChatsResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -116,6 +129,9 @@ func (UnimplementedChatServiceServer) SendMessage(context.Context, *SendMessageR
 }
 func (UnimplementedChatServiceServer) GetChatHistory(*GetChatHistoryRequest, ChatService_GetChatHistoryServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetChatHistory not implemented")
+}
+func (UnimplementedChatServiceServer) GetMyChats(context.Context, *GetMyChatsRequest) (*GetMyChatsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMyChats not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 
@@ -187,6 +203,24 @@ func (x *chatServiceGetChatHistoryServer) Send(m *Message) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _ChatService_GetMyChats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMyChatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).GetMyChats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_GetMyChats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).GetMyChats(ctx, req.(*GetMyChatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +236,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SendMessage",
 			Handler:    _ChatService_SendMessage_Handler,
 		},
+		{
+			MethodName: "GetMyChats",
+			Handler:    _ChatService_GetMyChats_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -210,5 +248,5 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/proto/chat.proto",
+	Metadata: "proto/chat/v1/chat.proto",
 }

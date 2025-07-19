@@ -109,3 +109,27 @@ func (s *server) GetChatHistory(req *chatv1.GetChatHistoryRequest, stream chatv1
 
 	return nil
 }
+
+func (s *server) GetMyChats(ctx context.Context, req *chatv1.GetMyChatsRequest) (*chatv1.GetMyChatsResponse, error) {
+	userID, ok := ctx.Value(interceptors.UserIDKey).(int64)
+	if !ok {
+		return nil, status.Error(codes.Internal, "failed to get user id from context")
+	}
+
+	chats, err := s.chatService.GetChatsByUserID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get user chats")
+	}
+
+	grpcChats := make([]*chatv1.ChatInfo, 0, len(chats))
+	for _, chatInfo := range chats {
+		grpcChats = append(grpcChats, &chatv1.ChatInfo{
+			Id:   chatInfo.ID,
+			Name: chatInfo.Name,
+		})
+	}
+
+	return &chatv1.GetMyChatsResponse{
+		Chats: grpcChats,
+	}, nil
+}

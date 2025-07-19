@@ -11,6 +11,7 @@ service ChatService {
     rpc CreateChat(CreateChatRequest) returns (CreateChatResponse) {}
     rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {}
     rpc GetChatHistory(GetChatHistoryRequest) returns (stream Message) {}
+    rpc GetMyChats(GetMyChatsRequest) returns (GetMyChatsResponse);
 }
 
 message Message {
@@ -43,4 +44,15 @@ message SendMessageResponse {
 
 message GetChatHistoryRequest {
     string chat_id = 1;
+}
+
+message ChatInfo {
+    string id = 1;
+    string name = 2;
+}
+
+message GetMyChatsRequest {}
+
+message GetMyChatsResponse {
+    repeated ChatInfo chats = 1;
 }
