@@ -30,6 +30,10 @@ func NewHub(redisClient *redis.Client, chatRepo chat.ChatRepository) *Hub {
 	}
 }
 
+type ChatCreatedEvent struct {
+	MemberIDs []int64 `json:"member_ids"`
+}
+
 func (h *Hub) Run() {
 	for {
 		select {
@@ -83,6 +87,38 @@ func (h *Hub) SubscribeToMessages(ctx context.Context) {
 					case client.send <- wsMsgBytes:
 					default:
 						log.Printf("client send channel full, dropping message for user %d", client.UserID)
+					}
+					break
+				}
+			}
+		}
+		h.mu.RUnlock()
+	}
+}
+
+func (h *Hub) SubscribeToChatEvents(ctx context.Context) {
+	pubsub := h.redis.Subscribe(ctx, "chat_events")
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+
+	for redisMsg := range ch {
+		var event ChatCreatedEvent
+		if err := json.Unmarshal([]byte(redisMsg.Payload), &event); err != nil {
+			log.Printf("failed to unmarshal chat event from redis: %v", err)
+			continue
+		}
+
+		wsMsgBytes, _ := NewWsMessage("chat_list_updated", nil)
+
+		h.mu.RLock()
+		for client := range h.clients {
+			for _, memberID := range event.MemberIDs {
+				if client.UserID == memberID {
+					select {
+					case client.send <- wsMsgBytes:
+					default:
+						log.Printf("client send channel full, dropping chat update for user %d", client.UserID)
 					}
 					break
 				}

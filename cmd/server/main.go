@@ -82,8 +82,7 @@ func main() {
 	authv1.RegisterAuthServiceServer(grpcServer, grpcAuthServer)
 	chatv1.RegisterChatServiceServer(grpcServer, grpcChatServer)
 
-	grpcConn, err := grpc.DialContext(
-		ctx,
+	grpcConn, err := grpc.NewClient(
 		"localhost:8080",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -97,6 +96,7 @@ func main() {
 	hub := ws.NewHub(redisClient, chRepository)
 	go hub.Run()
 	go hub.SubscribeToMessages(ctx)
+	go hub.SubscribeToChatEvents(ctx)
 
 	httpMux := http.NewServeMux()
 

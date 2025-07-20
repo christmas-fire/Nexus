@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { wsService } from '../services/websocket';
 
@@ -11,8 +11,13 @@ export default function ChatPage() {
     const navigate = useNavigate();
     const messagesContainerRef = useRef(null);
 
+    // Загрузка и статичные подписки
     useEffect(() => {
         const token = localStorage.getItem('authToken');
+        if (!token) {
+            navigate('/login');
+            return;
+        }
 
         const tokenPayload = JSON.parse(atob(token.split('.')[1]));
         setCurrentUserID(parseInt(tokenPayload.sub, 10));
@@ -23,34 +28,47 @@ export default function ChatPage() {
             else { localStorage.removeItem('authToken'); navigate('/login'); }
         };
         const handleChatsList = (payload) => setChats(payload.chats || []);
-        const handleChatHistory = (payload) => setMessages(payload.messages || []);
+        const handleChatHistory = (payload) => setMessages((payload.messages || []));
+
+        const handleChatListUpdated = () => {
+            console.log("Received chat list update event, refetching chats...");
+            wsService.sendMessage('get_my_chats', {});
+        };
+        
 
         wsService.on('auth_status', handleAuthStatus);
         wsService.on('my_chats_list', handleChatsList);
         wsService.on('chat_history', handleChatHistory);
+        wsService.on('chat_list_updated', handleChatListUpdated);
 
         return () => {
             wsService.off('auth_status', handleAuthStatus);
             wsService.off('my_chats_list', handleChatsList);
             wsService.off('chat_history', handleChatHistory);
+            wsService.off('chat_list_updated', handleChatListUpdated);
         };
     }, [navigate]);
 
+    // Подписка на новые сообщения (зависит от активного чата)
     useEffect(() => {
         if (!currentChat) return;
 
         const handleNewMessage = (payload) => {
             if (payload.chat_id === currentChat.id) {
-                setMessages(prev => [payload, ...prev]);
+                setMessages(prev => [...prev, payload]);
             }
         };
-
         wsService.on('new_message', handleNewMessage);
 
-        return () => {
-            wsService.off('new_message', handleNewMessage);
-        };
+        return () => wsService.off('new_message', handleNewMessage);
     }, [currentChat]);
+
+    // Скролл при отправке сообщения
+    useLayoutEffect(() => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    }, [messages]);
 
     const handleSelectChat = (chat) => {
         setCurrentChat(chat);
@@ -69,30 +87,50 @@ export default function ChatPage() {
         }
     };
 
+    const handleNewChat = () => {
+        const memberIdStr = prompt("Enter the User ID of the person you want to chat with:");
+        if (!memberIdStr) return;
+
+        const memberId = parseInt(memberIdStr, 10);
+        if (isNaN(memberId)) {
+            alert("Please enter a valid number for User ID.");
+            return;
+        }
+
+        const chatName = prompt("Enter a name for the chat (optional, for group chats):");
+
+        wsService.sendMessage("create_chat", {
+            member_ids: [memberId],
+            name: chatName || "",
+        });
+    };
+
     return (
         <div className="row vh-100 py-3">
             <div className="col-4 h-100 d-flex flex-column">
                 <div className="card flex-grow-1">
-                    <div className="card-header"><h5>My Chats</h5></div>
+                    <div className="card-header d-flex justify-content-between align-items-center">
+                        <h5>My Chats</h5>
+                        <button className="btn btn-sm btn-success" onClick={handleNewChat}>+</button>
+                    </div>
                     <ul className="list-group list-group-flush overflow-auto">
                         {chats.map(chat => (
                             <a href="#" key={chat.id} onClick={() => handleSelectChat(chat)}
                                className={`list-group-item list-group-item-action ${currentChat?.id === chat.id ? 'active' : ''}`}>
-                                {chat.name || `Chat ${chat.id.substring(0, 8)}`}
+                                {chat.name || `Chat with User...`}
                             </a>
                         ))}
                     </ul>
                 </div>
             </div>
+
             <div className="col-8 h-100">
-                <div className="card h-100 d-flex flex-column">
-                    <div className="card-header"><h5>{currentChat ? (currentChat.name || `Chat ${currentChat.id.substring(0, 8)}`) : 'Select a chat'}</h5></div>
-                    <div 
-                        ref={messagesContainerRef}
-                        className="card-body flex-grow-1" 
-                        style={{ overflowY: 'auto' }}
-                    >
-                        <div>
+                {currentChat ? (
+                    <div className="card h-100 d-flex flex-column">
+                        <div className="card-header">
+                            <h5>{currentChat.name || `Chat ${currentChat.id.substring(0, 8)}`}</h5>
+                        </div>
+                        <div ref={messagesContainerRef} className="card-body flex-grow-1" style={{ overflowY: 'auto' }}>
                             {messages.map(msg => {
                                 const isMyMessage = msg.sender_id === currentUserID;
                                 const alignClass = isMyMessage ? 'ms-auto' : 'me-auto';
@@ -112,15 +150,21 @@ export default function ChatPage() {
                                 );
                             })}
                         </div>
+                        <div className="card-footer">
+                            <form onSubmit={handleSendMessage} className="d-flex">
+                                <input type="text" className="form-control" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
+                                       placeholder="Type a message..." disabled={!currentChat} />
+                                <button type="submit" className="btn btn-primary ms-2" disabled={!currentChat}>Send</button>
+                            </form>
+                        </div>
                     </div>
-                    <div className="card-footer">
-                        <form onSubmit={handleSendMessage} className="d-flex">
-                            <input type="text" className="form-control" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                                   placeholder="Type a message..." disabled={!currentChat} />
-                            <button type="submit" className="btn btn-primary ms-2" disabled={!currentChat}>Send</button>
-                        </form>
+                ) : (
+                    <div className="h-100 d-flex justify-content-center align-items-center text-secondary">
+                        <div className="px-4 py-2 bg-white rounded-pill border">
+                            <span>Выберите, кому хотели бы написать</span>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

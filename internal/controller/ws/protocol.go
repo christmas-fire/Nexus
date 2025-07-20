@@ -66,3 +66,8 @@ type GetChatHistoryRequest struct {
 type ChatHistoryResponse struct {
 	Messages []models.Message `json:"messages"`
 }
+
+type CreateChatRequest struct {
+	MemberIDs []int64 `json:"member_ids"`
+	Name      string  `json:"name,omitempty"`
+}

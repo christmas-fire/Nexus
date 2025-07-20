@@ -115,17 +115,15 @@ func (c *Client) readPump(jwtSecret string) {
 		switch msg.Type {
 		case "auth":
 			c.handleAuth(msg.Payload, jwtSecret)
-
 		case "send_message":
 			c.handleSendMessage(msg.Payload)
-
 		case "get_my_chats":
 			c.handleGetMyChats()
-
 		case "get_chat_history":
 			c.handleGetChatHistory(msg.Payload)
+		case "create_chat":
+			c.handleCreateChat(msg.Payload)
 		}
-
 	}
 }
 
@@ -171,11 +169,11 @@ func (c *Client) handleAuth(payload []byte, jwtSecret string) {
 }
 
 func (c *Client) handleSendMessage(payload json.RawMessage) {
-	if c.Token == "" { /* ... */
+	if c.Token == "" {
 		return
 	}
 	var req SendMessageRequest
-	if err := json.Unmarshal(payload, &req); err != nil { /* ... */
+	if err := json.Unmarshal(payload, &req); err != nil {
 		return
 	}
 
@@ -266,4 +264,29 @@ func (c *Client) handleGetChatHistory(payload json.RawMessage) {
 	wsResp := ChatHistoryResponse{Messages: history}
 	wsMsg, _ := NewWsMessage("chat_history", wsResp)
 	c.send <- wsMsg
+}
+
+func (c *Client) handleCreateChat(payload json.RawMessage) {
+	if c.UserID == 0 {
+		return
+	}
+
+	var req CreateChatRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		log.Printf("failed to unmarshal create_chat payload: %v", err)
+		return
+	}
+
+	_, err := c.chatClient.CreateChat(c.createAuthContext(), &chatv1.CreateChatRequest{
+		MemberIds: append(req.MemberIDs, c.UserID),
+		Name:      req.Name,
+	})
+
+	if err != nil {
+		log.Printf("failed to create chat via gRPC: %v", err)
+		return
+	}
+
+	log.Printf("User %d created a new chat. Refreshing their chat list.", c.UserID)
+	c.handleGetMyChats()
 }

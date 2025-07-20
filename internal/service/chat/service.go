@@ -17,7 +17,9 @@ var (
 )
 
 const (
-	messagesChannel = "messages"
+	messagesChannel   = "messages"
+	chatEventsChannel = "chat_events"
+	messageLimit      = 50
 )
 
 type ChatService struct {
@@ -29,8 +31,33 @@ func NewChatService(chatRepo chat.ChatRepository, redisClient *redis.Client) *Ch
 	return &ChatService{chatRepo: chatRepo, redis: redisClient}
 }
 
+type ChatCreatedEvent struct {
+	ChatID    string  `json:"chat_id"`
+	MemberIDs []int64 `json:"member_ids"`
+}
+
 func (s *ChatService) CreateChat(ctx context.Context, name *string, memberIDs []int64) (string, error) {
-	return s.chatRepo.CreateChat(ctx, name, memberIDs)
+	chatID, err := s.chatRepo.CreateChat(ctx, name, memberIDs)
+	if err != nil {
+		return "", err
+	}
+
+	event := ChatCreatedEvent{
+		ChatID:    chatID,
+		MemberIDs: memberIDs,
+	}
+
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("failed to marshal chat created event: %v", err)
+		return chatID, nil
+	}
+
+	if err := s.redis.Publish(ctx, chatEventsChannel, eventBytes).Err(); err != nil {
+		log.Printf("failed to publish chat created event: %v", err)
+	}
+
+	return chatID, nil
 }
 
 func (s *ChatService) SendMessage(ctx context.Context, chatID string, senderID int64, text string) (string, time.Time, error) {
@@ -81,7 +108,6 @@ func (s *ChatService) GetChatHistory(ctx context.Context, chatID string, userID 
 		return nil, ErrPermissionDenied
 	}
 
-	const messageLimit = 50
 	return s.chatRepo.GetHistory(ctx, chatID, messageLimit)
 }
 
