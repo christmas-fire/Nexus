@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log"
 
-	"github.com/christmas-fire/nexus/internal/app/grpc/interceptors"
-	"github.com/christmas-fire/nexus/internal/service/chat"
+	"github.com/christmas-fire/nexus/internal/controller/grpc/interceptors"
+	chat "github.com/christmas-fire/nexus/internal/service/chat"
 	chatv1 "github.com/christmas-fire/nexus/pkg/chat/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

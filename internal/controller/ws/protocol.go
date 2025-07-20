@@ -1,4 +1,4 @@
-package gateway
+package ws
 
 import (
 	"encoding/json"

@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/christmas-fire/nexus/internal/app/gateway"
-	grpcAuth "github.com/christmas-fire/nexus/internal/app/grpc/auth"
-	grpcChat "github.com/christmas-fire/nexus/internal/app/grpc/chat"
-	"github.com/christmas-fire/nexus/internal/app/grpc/interceptors"
-	"github.com/christmas-fire/nexus/internal/app/rest"
+	grpcAuth "github.com/christmas-fire/nexus/internal/controller/grpc/auth"
+	grpcChat "github.com/christmas-fire/nexus/internal/controller/grpc/chat"
+	"github.com/christmas-fire/nexus/internal/controller/grpc/interceptors"
+	"github.com/christmas-fire/nexus/internal/controller/rest"
+	"github.com/christmas-fire/nexus/internal/controller/ws"
 
 	"github.com/christmas-fire/nexus/internal/repository/chat"
 	userRepo "github.com/christmas-fire/nexus/internal/repository/user"
@@ -94,14 +94,14 @@ func main() {
 
 	chatGrpcClient := chatv1.NewChatServiceClient(grpcConn)
 
-	hub := gateway.NewHub(redisClient, chRepository)
+	hub := ws.NewHub(redisClient, chRepository)
 	go hub.Run()
 	go hub.SubscribeToMessages(ctx)
 
 	httpMux := http.NewServeMux()
 
 	httpMux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		gateway.ServeWs(hub, w, r, jwtSecret, chatGrpcClient)
+		ws.ServeWs(hub, w, r, jwtSecret, chatGrpcClient)
 	})
 
 	authRestHandler := rest.NewAuthHandler(authenticationService)
