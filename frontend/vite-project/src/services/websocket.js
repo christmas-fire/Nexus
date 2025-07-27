@@ -10,7 +10,8 @@ class WebSocketService {
             return;
         }
 
-        const url = `ws://${window.location.host}/ws`;
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const url = `${protocol}://${window.location.host}/ws`; 
         console.log("Connecting to WebSocket at:", url);
         this.socket = new WebSocket(url);
 
